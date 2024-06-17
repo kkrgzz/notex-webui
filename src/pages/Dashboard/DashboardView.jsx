@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import {
     ChakraProvider, Box, Flex, Heading, Button, Input, Textarea, Stack, Modal, ModalOverlay, ModalContent, ModalHeader,
     ModalCloseButton, ModalBody, ModalFooter, useDisclosure, IconButton, List, ListItem, VStack, HStack, Checkbox,
     CheckboxGroup, Divider, FormControl, FormLabel, Image, Tag, TagLabel, Menu, MenuButton, MenuList, MenuItem, Avatar, Wrap, WrapItem, Drawer, DrawerOverlay, DrawerContent, DrawerHeader, DrawerBody, DrawerFooter, Text, useColorMode, Tooltip,
-    Spacer
+    Spacer,
+    useToast
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon, CheckIcon, AttachmentIcon, CloseIcon, ChevronDownIcon, SettingsIcon, HamburgerIcon, SunIcon, MoonIcon, CopyIcon } from '@chakra-ui/icons';
-import { CopyToClipboard } from 'react-copy-to-clipboard';
-import theme from '../../config/theme'; // Temayı import ediyoruz
+import theme from '../../config/theme';
 import { Link } from 'react-router-dom';
+import { AuthContext } from '../../config/AuthContext';
+import api from '../../config/api';
 
 function DashboardView() {
     const [notes, setNotes] = useState([]);
@@ -35,6 +37,9 @@ function DashboardView() {
     const { isOpen: isViewModalOpen, onOpen: onOpenViewModal, onClose: onCloseViewModal } = useDisclosure();
     const { colorMode, toggleColorMode } = useColorMode();
 
+    const { logout } = useContext(AuthContext);
+    const toast = useToast();
+
     const onOpenNoteModal = () => {
         setIsEditingNote(false);
         setEditingNoteIndex(null);
@@ -47,6 +52,24 @@ function DashboardView() {
         setEditingNoteIndex(null);
         onCloseNoteModalBase();
     };
+
+    const handleLogout = async () => {
+
+        await api.post("/logout");
+
+        toast({
+            title: "Logged Out.",
+            description: "You have successfully logged out.",
+            status: "success",
+            duration: 2000,
+            isClosable: true,
+        });
+
+        setTimeout(() => {
+            logout();
+        }, 2000);
+
+    }
 
     const handleAddOrUpdateNote = () => {
         const newNote = { title, content, images, urls, categories: selectedCategories.slice(0, 3) };
@@ -199,7 +222,7 @@ function DashboardView() {
                             </MenuButton>
                             <MenuList>
                                 <MenuItem icon={<EditIcon />} as={Link} to="/profile">Edit Profile</MenuItem>
-                                <MenuItem icon={<CloseIcon />} as={Link} to="/logout" color="red.500">Logout</MenuItem>
+                                <MenuItem onClick={handleLogout} icon={<CloseIcon />} color="red.500">Logout</MenuItem>
                             </MenuList>
                         </Menu>
                     </HStack>
@@ -219,7 +242,7 @@ function DashboardView() {
                                         <Button colorScheme="teal" width="full" onClick={onOpenCatModal} leftIcon={<EditIcon />}>
                                             Manage Categories
                                         </Button>
-                                        <Button colorScheme="red" width="full" leftIcon={<CloseIcon />} as={Link} to="/logout">
+                                        <Button colorScheme="red" width="full" onClick={handleLogout} leftIcon={<CloseIcon />}>
                                             Logout
                                         </Button>
                                     </VStack>
@@ -241,7 +264,7 @@ function DashboardView() {
                             <Button colorScheme="teal" width="full" onClick={onOpenCatModal} leftIcon={<EditIcon />}>
                                 Manage Categories
                             </Button>
-                            <Button colorScheme="red" width="full" leftIcon={<CloseIcon />} as={Link} to="/logout">
+                            <Button colorScheme="red" width="full" onClick={handleLogout} leftIcon={<CloseIcon />}>
                                 Logout
                             </Button>
                             <Spacer />
