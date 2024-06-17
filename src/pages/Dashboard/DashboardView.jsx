@@ -4,9 +4,10 @@ import {
     ModalCloseButton, ModalBody, ModalFooter, useDisclosure, IconButton, List, ListItem, VStack, HStack, Checkbox,
     CheckboxGroup, Divider, FormControl, FormLabel, Image, Tag, TagLabel, Menu, MenuButton, MenuList, MenuItem, Avatar, Wrap, WrapItem, Drawer, DrawerOverlay, DrawerContent, DrawerHeader, DrawerBody, DrawerFooter, Text, useColorMode, Tooltip,
     Spacer,
-    useToast
+    useToast,
+    Select
 } from '@chakra-ui/react';
-import { AddIcon, EditIcon, DeleteIcon, CheckIcon, AttachmentIcon, CloseIcon, ChevronDownIcon, SettingsIcon, HamburgerIcon, SunIcon, MoonIcon, CopyIcon } from '@chakra-ui/icons';
+import { AddIcon, EditIcon, DeleteIcon, CheckIcon, AttachmentIcon, CloseIcon, ChevronDownIcon, SettingsIcon, HamburgerIcon, SunIcon, MoonIcon, CopyIcon, Search2Icon } from '@chakra-ui/icons';
 import theme from '../../config/theme';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../../config/AuthContext';
@@ -27,6 +28,7 @@ function DashboardView() {
     const [isEditingNote, setIsEditingNote] = useState(false);
     const [editingNoteIndex, setEditingNoteIndex] = useState(null);
     const [noteToDelete, setNoteToDelete] = useState(null);
+    const [noteToDeleteFromArray, setNoteToDeleteFromArray] = useState(null);
     const [viewingNote, setViewingNote] = useState(null);
 
     const { isOpen: isNoteModalOpen, onOpen: onOpenNoteModalBase, onClose: onCloseNoteModalBase } = useDisclosure();
@@ -36,19 +38,33 @@ function DashboardView() {
     const { isOpen: isViewModalOpen, onOpen: onOpenViewModal, onClose: onCloseViewModal } = useDisclosure();
     const { colorMode, toggleColorMode } = useColorMode();
 
+    const image_base_url = import.meta.env.VITE_API_IMAGE_URL;
     const { logout } = useContext(AuthContext);
     const toast = useToast();
 
 
     useEffect(() => {
-        const fetchCategories = async () => {
+        const fetchData = async () => {
             try {
-                const response = await api.get('/categories');
-                setCategories(response.data);
+                const [categoriesResponse, notesResponse] = await Promise.all([
+                    api.get('/categories'),
+                    api.get('/notes')
+                ]);
+
+                console.log('Fetched Notes:', notesResponse.data);
+
+                setCategories(categoriesResponse.data);
+                setNotes(notesResponse.data);
+
+                notesResponse.data.forEach((note, index) => {
+                    console.log(`Note ${index}:`, note);
+                });
+
+                setNotes(notesResponse.data);
             } catch (error) {
                 toast({
-                    title: "Error loading categories.",
-                    description: "There was an error loading categories.",
+                    title: "Error loading data.",
+                    description: "There was an error loading categories or notes.",
                     status: "error",
                     duration: 2000,
                     isClosable: true,
@@ -56,9 +72,12 @@ function DashboardView() {
             }
         }
 
-        fetchCategories();
-
+        fetchData();
     }, []);
+
+
+
+
 
 
     const onOpenNoteModal = () => {
@@ -92,43 +111,167 @@ function DashboardView() {
 
     }
 
-    const handleAddOrUpdateNote = () => {
-        const newNote = { title, content, images, urls, categories: selectedCategories.slice(0, 3) };
-        if (isEditingNote) {
+    const handleAddNote = async () => {
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('content', content);
+    
+        // Kategorileri ekleme
+        selectedCategories.forEach((category) => {
+            formData.append('categories[]', category);
+        });
+    
+        // URL'leri ekleme
+        urls.forEach((url) => {
+            formData.append('urls[]', url);
+        });
+    
+        // Resimleri ekleme
+        images.forEach((image) => {
+            formData.append('images[]', image);
+        });
+    
+        try {
+            const response = await api.post('/notes', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            setNotes([...notes, response.data]);
+    
+            resetNoteFields();
+            onCloseNoteModal();
+            toast({
+                title: "Note created.",
+                description: "Your note has been created successfully.",
+                status: "success",
+                duration: 2000,
+                isClosable: true,
+            });
+        } catch (error) {
+            toast({
+                title: "Error creating note.",
+                description: error.response?.data?.message || "There was an error creating your note.",
+                status: "error",
+                duration: 2000,
+                isClosable: true,
+            });
+        }
+    };
+
+
+    const handleUpdateNote = async () => {
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('content', content);
+
+        // Kategorileri ekleme
+        selectedCategories.forEach((category) => {
+            formData.append('categories[]', category);
+        });
+
+        // URL'leri ekleme
+        urls.forEach((url) => {
+            formData.append('urls[]', url);
+        });
+
+        // Tüm resimleri ekle (mevcut ve yeni) based on a condition
+        images.forEach((image) => {
+            if (image.file) {
+                formData.append('images[]', image.file);
+            } else if (image.id) {
+                formData.append('images[]', image.file_path);
+            }
+        });
+
+        try {
+            const response = await api.post(`/notes/${notes[editingNoteIndex].id}`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    'X-HTTP-Method-Override': 'PUT' // Laravel PUT methodunu desteklemesi için
+                }
+            });
             const updatedNotes = notes.map((note, index) =>
-                index === editingNoteIndex ? newNote : note
+                index === editingNoteIndex ? response.data : note
             );
             setNotes(updatedNotes);
             setIsEditingNote(false);
             setEditingNoteIndex(null);
-        } else {
-            setNotes([...notes, newNote]);
+
+            resetNoteFields();
+            onCloseNoteModal();
+            toast({
+                title: "Note updated.",
+                description: "Your note has been updated successfully.",
+                status: "success",
+                duration: 2000,
+                isClosable: true,
+            });
+        } catch (error) {
+            toast({
+                title: "Error updating note.",
+                description: error.response?.data?.message || "There was an error updating your note.",
+                status: "error",
+                duration: 2000,
+                isClosable: true,
+            });
         }
-        resetNoteFields();
-        onCloseNoteModal();
     };
+
+
+
 
     const handleEditNote = (index) => {
         const note = notes[index];
         setTitle(note.title);
         setContent(note.content);
-        setImages(note.images);
-        setImagePreviews(note.images.map((image) => URL.createObjectURL(image)));
-        setUrls(note.urls);
-        setSelectedCategories(note.categories);
+        setImages(note.images.map((image) => ({
+            file_path: image.file_path,
+            id: image.id
+        })));
+        setImagePreviews(note.images.map((image) => `${image_base_url}${image.file_path}`));
+        setUrls(note.urls.map(url => url.url));
+        setSelectedCategories(note.categories.map(category => category.id));
         setIsEditingNote(true);
         setEditingNoteIndex(index);
         onOpenNoteModalBase();
     };
 
-    const handleDeleteNote = () => {
-        setNotes(notes.filter((_, i) => i !== noteToDelete));
+
+
+    const handleNoteCategoryChange = (event) => {
+        const value = parseInt(event.target.value); // ID'yi integer olarak al
+        setSelectedCategories((prevSelectedCategories) => {
+            if (prevSelectedCategories.includes(value)) {
+                return prevSelectedCategories.filter((category) => category !== value);
+            } else {
+                return [...prevSelectedCategories, value];
+            }
+        });
+    };
+
+
+    const handleDeleteNote = async () => {
+
+        await api.delete(`/notes/${noteToDelete}`);
+        toast({
+            title: "Note deleted.",
+            description: "Your note has been deleted successfully.",
+            status: "success",
+            duration: 2000,
+            isClosable: true,
+        });
+
+        setNotes(notes.filter((_, i) => i !== noteToDeleteFromArray));
+
         setNoteToDelete(null);
+        setNoteToDeleteFromArray(null);
         onCloseConfirmModal();
     };
 
-    const confirmDeleteNote = (index) => {
+    const confirmDeleteNote = (index, arrayIndex) => {
         setNoteToDelete(index);
+        setNoteToDeleteFromArray(arrayIndex);
         onOpenConfirmModal();
     };
 
@@ -141,7 +284,7 @@ function DashboardView() {
         const files = Array.from(e.target.files);
         const newImages = [...images];
         const newPreviews = [...imagePreviews];
-
+    
         files.forEach((file) => {
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -154,12 +297,48 @@ function DashboardView() {
         });
     };
 
+
+
+
+
+
     const handleRemoveImage = (index) => {
-        const newImages = images.filter((_, i) => i !== index);
-        const newPreviews = imagePreviews.filter((_, i) => i !== index);
-        setImages(newImages);
-        setImagePreviews(newPreviews);
+        const imageToRemove = images[index];
+
+        if (imageToRemove.id) {
+            // Sunucudan silinmesi gereken mevcut bir resim
+            api.delete(`/images/${imageToRemove.id}`)
+                .then(() => {
+                    const newImages = images.filter((_, i) => i !== index);
+                    const newPreviews = imagePreviews.filter((_, i) => i !== index);
+                    setImages(newImages);
+                    setImagePreviews(newPreviews);
+                    toast({
+                        title: "Image removed.",
+                        description: "The image has been removed successfully.",
+                        status: "success",
+                        duration: 2000,
+                        isClosable: true,
+                    });
+                })
+                .catch((error) => {
+                    toast({
+                        title: "Error removing image.",
+                        description: "There was an error removing the image.",
+                        status: "error",
+                        duration: 2000,
+                        isClosable: true,
+                    });
+                });
+        } else {
+            // Yalnızca state'den silinmesi gereken yeni bir resim
+            const newImages = images.filter((_, i) => i !== index);
+            const newPreviews = imagePreviews.filter((_, i) => i !== index);
+            setImages(newImages);
+            setImagePreviews(newPreviews);
+        }
     };
+
 
     const handleUrlChange = (index, value) => {
         const newUrls = [...urls];
@@ -176,9 +355,18 @@ function DashboardView() {
         setUrls(newUrls);
     };
 
-    const handleCategoryChange = (selectedCategories) => {
-        setSelectedCategories(selectedCategories);
+    const handleCategoryChange = (event) => {
+        const value = event.target.value;
+        setSelectedCategories((prevSelectedCategories) => {
+            if (prevSelectedCategories.includes(value)) {
+                return prevSelectedCategories.filter((category) => category !== value);
+            } else {
+                return [...prevSelectedCategories, value];
+            }
+        });
     };
+
+
 
     const resetNoteFields = () => {
         setTitle('');
@@ -271,7 +459,7 @@ function DashboardView() {
 
     return (
         <ChakraProvider theme={theme}>
-            <Flex height="100vh" flexDirection="column" bg={colorMode === 'light' ? 'gray.100' : 'gray.900'}>
+            <Flex height="100%" flexDirection="column" bg={colorMode === 'light' ? 'gray.100' : 'gray.900'}>
                 <Flex justify="space-between" align="center" bg={colorMode === 'light' ? 'white' : 'gray.800'} p={4}>
                     <IconButton
                         icon={<HamburgerIcon />}
@@ -357,17 +545,21 @@ function DashboardView() {
                                     <Wrap spacing={4} align="center">
                                         {note.images[0] && (
                                             <WrapItem>
-                                                <Image src={URL.createObjectURL(note.images[0])} alt="Note Image" boxSize="100px" objectFit="cover" />
+                                                <Image src={`${image_base_url}${note.images[0].file_path}`} alt="Note Image" boxSize="100px" objectFit="cover" />
                                             </WrapItem>
                                         )}
                                         <WrapItem flex="1">
                                             <Box>
-                                                <Heading size="md" color="teal.300">{note.title}</Heading>
-                                                <Box color={colorMode === 'light' ? 'gray.800' : 'gray.300'} isTruncated>{note.content}</Box>
+                                                <Heading size="md" color="teal.300">
+                                                    {note.title.length > 24 ? `${note.title.substring(0, 24)}...` : note.title}
+                                                </Heading>
+                                                <Box color={colorMode === 'light' ? 'gray.800' : 'gray.300'} isTruncated>
+                                                    {note.content.length > 24 ? `${note.content.substring(0, 24)}...` : note.content}
+                                                </Box>
                                                 <HStack spacing={2} mt={2}>
-                                                    {note.categories.map((category, catIndex) => (
-                                                        <Tag size="sm" key={catIndex} colorScheme="teal">
-                                                            <TagLabel>{category}</TagLabel>
+                                                    {note.categories.slice(0, 3).map((category) => (
+                                                        <Tag size="sm" key={category.id} colorScheme="teal">
+                                                            <TagLabel>{category.name}</TagLabel>
                                                         </Tag>
                                                     ))}
                                                 </HStack>
@@ -375,6 +567,12 @@ function DashboardView() {
                                         </WrapItem>
                                         <WrapItem>
                                             <HStack spacing={2}>
+                                                <IconButton
+                                                    icon={<Search2Icon />}
+                                                    colorScheme="teal"
+                                                    size="lg"
+                                                    onClick={() => handleViewNote(index)}
+                                                />
                                                 <IconButton
                                                     icon={<EditIcon />}
                                                     colorScheme="cyan"
@@ -385,13 +583,7 @@ function DashboardView() {
                                                     icon={<DeleteIcon />}
                                                     colorScheme="red"
                                                     size="lg"
-                                                    onClick={() => confirmDeleteNote(index)}
-                                                />
-                                                <IconButton
-                                                    icon={<AttachmentIcon />}
-                                                    colorScheme="teal"
-                                                    size="lg"
-                                                    onClick={() => handleViewNote(index)}
+                                                    onClick={() => confirmDeleteNote(note.id, index)}
                                                 />
                                             </HStack>
                                         </WrapItem>
@@ -422,15 +614,22 @@ function DashboardView() {
                                 onChange={(e) => setContent(e.target.value)}
                             />
                             <Box maxHeight="100px" overflowY="auto" border="1px solid #4A5568" borderRadius="md" p={2}>
-                                <CheckboxGroup value={selectedCategories} onChange={handleCategoryChange}>
-                                    <Stack spacing={1}>
-                                        {categories.map((category) => (
-                                            <Checkbox key={category.id} value={category.id} colorScheme="teal">
-                                                {category.name}
-                                            </Checkbox>
-                                        ))}
-                                    </Stack>
-                                </CheckboxGroup>
+                                {categories.map((category) => (
+                                    <div key={category.id} className='form-check'>
+                                        <input
+                                            className='form-check-input'
+                                            type='checkbox'
+                                            name='categories'
+                                            id={category.name}
+                                            value={category.id}
+                                            checked={selectedCategories.includes(category.id)}
+                                            onChange={handleNoteCategoryChange}
+                                        />
+                                        <label
+                                            className='form-check-label'
+                                            htmlFor={category.name}>{category.name}</label>
+                                    </div>
+                                ))}
                             </Box>
                             {urls.map((url, index) => (
                                 <HStack key={index} spacing={2}>
@@ -462,10 +661,11 @@ function DashboardView() {
                                     onChange={handleImageUpload}
                                 />
                             </FormControl>
+
                             <Flex wrap="wrap" mt={2}>
                                 {imagePreviews.map((src, index) => (
                                     <Box key={index} position="relative" mr={2} mb={2}>
-                                        <Image src={src} alt={`Image ${index}`} boxSize="100px" objectFit="cover" />
+                                        <Image src={src.startsWith('data:') ? src : src} alt={`Image ${index}`} boxSize="100px" objectFit="cover" />
                                         <IconButton
                                             icon={<CloseIcon />}
                                             size="xs"
@@ -478,16 +678,20 @@ function DashboardView() {
                                     </Box>
                                 ))}
                             </Flex>
+
+
                         </Stack>
                     </ModalBody>
                     <ModalFooter>
-                        <Button colorScheme="teal" mr={3} onClick={handleAddOrUpdateNote}>
+                        <Button colorScheme="teal" mr={3} onClick={isEditingNote ? handleUpdateNote : handleAddNote}>
                             {isEditingNote ? 'Update Note' : 'Add Note'}
                         </Button>
                         <Button onClick={onCloseNoteModal}>Cancel</Button>
                     </ModalFooter>
                 </ModalContent>
             </Modal>
+
+
 
             {/* View Note Modal */}
             <Modal isOpen={isViewModalOpen} onClose={onCloseViewModal}>
@@ -504,7 +708,7 @@ function DashboardView() {
                                     <Wrap spacing={1}>
                                         {viewingNote.categories.map((category, catIndex) => (
                                             <Tag size="sm" key={catIndex} colorScheme="teal">
-                                                <TagLabel>{category}</TagLabel>
+                                                <TagLabel>{category.name}</TagLabel>
                                             </Tag>
                                         ))}
                                     </Wrap>
@@ -512,15 +716,18 @@ function DashboardView() {
                                 <Wrap spacing={2} mt={2}>
                                     {viewingNote.images.map((image, index) => (
                                         <Box key={index}>
-                                            <Image src={URL.createObjectURL(image)} alt={`Image ${index}`} boxSize="100px" objectFit="cover" />
+                                            <Image src={`${image_base_url}${image.file_path}`} alt={`Image ${index}`} boxSize="100px" objectFit="cover" />
                                         </Box>
                                     ))}
                                 </Wrap>
                                 <Stack spacing={2}>
                                     {viewingNote.urls.map((url, index) => (
-                                        <HStack key={index} spacing={2}>
-                                            <Text color="teal.300" wordBreak="break-all">{url}</Text>
-                                        </HStack>
+                                        <Box maxHeight="100px" overflowY="auto" border="1px solid #4A5568" borderRadius="md" p={2}>
+                                            <HStack key={index} spacing={2}>
+                                                <Text color={colorMode === 'light' ? 'gray.800' : 'gray.300'} wordBreak="break-all">{url.url}</Text>
+                                            </HStack>
+                                        </Box>
+
                                     ))}
                                 </Stack>
                             </Stack>
