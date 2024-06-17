@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
     ChakraProvider, Box, Flex, Heading, Button, Input, Textarea, Stack, Modal, ModalOverlay, ModalContent, ModalHeader,
     ModalCloseButton, ModalBody, ModalFooter, useDisclosure, IconButton, List, ListItem, VStack, HStack, Checkbox,
@@ -14,7 +14,7 @@ import api from '../../config/api';
 
 function DashboardView() {
     const [notes, setNotes] = useState([]);
-    const [categories, setCategories] = useState(['Personal', 'Work', 'Ideas', 'Travel']);
+    const [categories, setCategories] = useState([]);
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
@@ -28,7 +28,6 @@ function DashboardView() {
     const [editingNoteIndex, setEditingNoteIndex] = useState(null);
     const [noteToDelete, setNoteToDelete] = useState(null);
     const [viewingNote, setViewingNote] = useState(null);
-    const [copiedUrl, setCopiedUrl] = useState('');
 
     const { isOpen: isNoteModalOpen, onOpen: onOpenNoteModalBase, onClose: onCloseNoteModalBase } = useDisclosure();
     const { isOpen: isCatModalOpen, onOpen: onOpenCatModal, onClose: onCloseCatModal } = useDisclosure();
@@ -39,6 +38,28 @@ function DashboardView() {
 
     const { logout } = useContext(AuthContext);
     const toast = useToast();
+
+
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const response = await api.get('/categories');
+                setCategories(response.data);
+            } catch (error) {
+                toast({
+                    title: "Error loading categories.",
+                    description: "There was an error loading categories.",
+                    status: "error",
+                    duration: 2000,
+                    isClosable: true,
+                });
+            }
+        }
+
+        fetchCategories();
+
+    }, []);
+
 
     const onOpenNoteModal = () => {
         setIsEditingNote(false);
@@ -168,27 +189,85 @@ function DashboardView() {
         setSelectedCategories([]);
     };
 
-    const handleAddCategory = () => {
+    const handleAddCategory = async () => {
         if (newCategory && !categories.includes(newCategory)) {
-            setCategories([...categories, newCategory]);
-            setNewCategory('');
+            try {
+                const response = await api.post('/categories', { name: newCategory });
+                setCategories([...categories, response.data]);
+                setNewCategory('');
+                toast({
+                    title: "Category added.",
+                    description: "The new category has been added successfully.",
+                    status: "success",
+                    duration: 2000,
+                    isClosable: true,
+                });
+            } catch (error) {
+                toast({
+                    title: "Error adding category.",
+                    description: "There was an error adding the category.",
+                    status: "error",
+                    duration: 2000,
+                    isClosable: true,
+                });
+            }
         }
     };
 
-    const handleDeleteCategory = (category) => {
-        setCategories(categories.filter((cat) => cat !== category));
+    const handleDeleteCategory = async (categoryId) => {
+        try {
+            await api.delete(`/categories/${categoryId}`);
+            setCategories(categories.filter((category) => category.id !== categoryId));
+            toast({
+                title: "Category deleted.",
+                description: "The category has been deleted successfully.",
+                status: "success",
+                duration: 2000,
+                isClosable: true,
+            });
+        } catch (error) {
+            toast({
+                title: "Error deleting category.",
+                description: "There was an error deleting the category.",
+                status: "error",
+                duration: 2000,
+                isClosable: true,
+            });
+        }
     };
+
 
     const handleEditCategory = (category) => {
         setEditingCategory(category);
         setEditingCategoryValue(category);
     };
 
-    const handleSaveCategory = (oldCategory) => {
-        setCategories(categories.map((cat) => (cat === oldCategory ? editingCategoryValue : cat)));
-        setEditingCategory(null);
-        setEditingCategoryValue('');
+    const handleSaveCategory = async (categoryId, newName) => {
+        try {
+            await api.put(`/categories/${categoryId}`, { name: newName });
+            setCategories(categories.map((category) =>
+                category.id === categoryId ? { ...category, name: newName } : category
+            ));
+            setEditingCategory(null);
+            setEditingCategoryValue('');
+            toast({
+                title: "Category updated.",
+                description: "The category has been updated successfully.",
+                status: "success",
+                duration: 2000,
+                isClosable: true,
+            });
+        } catch (error) {
+            toast({
+                title: "Error updating category.",
+                description: "There was an error updating the category.",
+                status: "error",
+                duration: 2000,
+                isClosable: true,
+            });
+        }
     };
+
 
     return (
         <ChakraProvider theme={theme}>
@@ -346,8 +425,8 @@ function DashboardView() {
                                 <CheckboxGroup value={selectedCategories} onChange={handleCategoryChange}>
                                     <Stack spacing={1}>
                                         {categories.map((category) => (
-                                            <Checkbox key={category} value={category} colorScheme="teal">
-                                                {category}
+                                            <Checkbox key={category.id} value={category.id} colorScheme="teal">
+                                                {category.name}
                                             </Checkbox>
                                         ))}
                                     </Stack>
@@ -473,8 +552,8 @@ function DashboardView() {
                             <Box maxHeight="200px" overflowY="auto" border="1px solid #4A5568" borderRadius="md" p={2}>
                                 <Stack spacing={3}>
                                     {categories.map((category) => (
-                                        <Flex key={category} justify="space-between" align="center">
-                                            {editingCategory === category ? (
+                                        <Flex key={category.id} justify="space-between" align="center">
+                                            {editingCategory === category.id ? (
                                                 <HStack spacing={2} width="full">
                                                     <Input
                                                         value={editingCategoryValue}
@@ -484,24 +563,27 @@ function DashboardView() {
                                                     <IconButton
                                                         icon={<CheckIcon />}
                                                         colorScheme="teal"
-                                                        onClick={() => handleSaveCategory(category)}
+                                                        onClick={() => handleSaveCategory(category.id, editingCategoryValue)}
                                                     />
                                                 </HStack>
                                             ) : (
                                                 <>
-                                                    <Box>{category}</Box>
+                                                    <Box>{category.name}</Box>
                                                     <HStack spacing={2}>
                                                         <IconButton
                                                             icon={<EditIcon />}
                                                             colorScheme="cyan"
                                                             size="sm"
-                                                            onClick={() => handleEditCategory(category)}
+                                                            onClick={() => {
+                                                                setEditingCategory(category.id);
+                                                                setEditingCategoryValue(category.name);
+                                                            }}
                                                         />
                                                         <IconButton
                                                             icon={<DeleteIcon />}
                                                             colorScheme="pink"
                                                             size="sm"
-                                                            onClick={() => handleDeleteCategory(category)}
+                                                            onClick={() => handleDeleteCategory(category.id)}
                                                         />
                                                     </HStack>
                                                 </>
