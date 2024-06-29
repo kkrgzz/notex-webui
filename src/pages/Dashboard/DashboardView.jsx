@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom';
 import { AuthContext } from '../../config/AuthContext';
 import api from '../../config/api';
 import ReactQuill from 'react-quill';
-
+import DOMPurify from 'dompurify';
 import 'react-quill/dist/quill.snow.css'; // Import the styles
 
 function DashboardView() {
@@ -113,22 +113,22 @@ function DashboardView() {
         const formData = new FormData();
         formData.append('title', title);
         formData.append('content', content);
-    
+
         // Kategorileri ekleme
         selectedCategories.forEach((category) => {
             formData.append('categories[]', category);
         });
-    
+
         // URL'leri ekleme
         urls.forEach((url) => {
             formData.append('urls[]', url);
         });
-    
+
         // Resimleri ekleme
         images.forEach((image) => {
             formData.append('images[]', image);
         });
-    
+
         try {
             const response = await api.post('/notes', formData, {
                 headers: {
@@ -136,7 +136,7 @@ function DashboardView() {
                 }
             });
             setNotes([...notes, response.data]);
-    
+
             resetNoteFields();
             onCloseNoteModal();
             toast({
@@ -282,7 +282,7 @@ function DashboardView() {
         const files = Array.from(e.target.files);
         const newImages = [...images];
         const newPreviews = [...imagePreviews];
-    
+
         files.forEach((file) => {
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -551,9 +551,6 @@ function DashboardView() {
                                                 <Heading size="md" color="teal.300">
                                                     {note.title.length > 24 ? `${note.title.substring(0, 24)}...` : note.title}
                                                 </Heading>
-                                                <Box color={colorMode === 'light' ? 'gray.800' : 'gray.300'} isTruncated>
-                                                    {note.content.length > 24 ? `${note.content.substring(0, 24)}...` : note.content}
-                                                </Box>
                                                 <HStack spacing={2} mt={2}>
                                                     {note.categories.slice(0, 3).map((category) => (
                                                         <Tag size="sm" key={category.id} colorScheme="teal">
@@ -611,9 +608,9 @@ function DashboardView() {
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
                             />
-                            <ReactQuill 
-                            value={content} 
-                            onChange={setContent}
+                            <ReactQuill
+                                value={content}
+                                onChange={setContent}
                             />
                             <Box maxHeight="100px" overflowY="auto" border="1px solid #4A5568" borderRadius="md" p={2}>
                                 {categories.map((category) => (
@@ -681,7 +678,6 @@ function DashboardView() {
                                 ))}
                             </Flex>
 
-
                         </Stack>
                     </ModalBody>
                     <ModalFooter>
@@ -705,15 +701,20 @@ function DashboardView() {
                         {viewingNote && (
                             <Stack spacing={3}>
                                 <Heading size="md" color="teal.300">{viewingNote.title}</Heading>
-                                <Text color={colorMode === 'light' ? 'gray.800' : 'gray.300'}>{viewingNote.content}</Text>
-                                <Box maxHeight="100px" overflowY="auto" border="1px solid #4A5568" borderRadius="md" p={2}>
-                                    <Wrap spacing={1}>
+                                <Wrap spacing={1}>
                                         {viewingNote.categories.map((category, catIndex) => (
                                             <Tag size="sm" key={catIndex} colorScheme="teal">
                                                 <TagLabel>{category.name}</TagLabel>
                                             </Tag>
                                         ))}
                                     </Wrap>
+                                <Box p={2}>
+                                    <Text
+                                        className='note-content-text'
+                                        color={colorMode === 'light' ? 'gray.800' : 'gray.300'}
+                                        dangerouslySetInnerHTML={
+                                            { __html: DOMPurify.sanitize(viewingNote.content) }
+                                        } />
                                 </Box>
                                 <Wrap spacing={2} mt={2}>
                                     {viewingNote.images.map((image, index) => (
@@ -724,7 +725,7 @@ function DashboardView() {
                                 </Wrap>
                                 <Stack spacing={2}>
                                     {viewingNote.urls.map((url, index) => (
-                                        <Box maxHeight="100px" overflowY="auto" border="1px solid #4A5568" borderRadius="md" p={2}>
+                                        <Box key={index} maxHeight="100px" overflowY="auto" border="1px solid #4A5568" borderRadius="md" p={2}>
                                             <HStack key={index} spacing={2}>
                                                 <Text color={colorMode === 'light' ? 'gray.800' : 'gray.300'} wordBreak="break-all">{url.url}</Text>
                                             </HStack>

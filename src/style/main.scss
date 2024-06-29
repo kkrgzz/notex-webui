@@ -5,3 +5,19 @@ body{
 #root{
     height: 100%;
 }
+
+.note-content-text {
+    li {
+        margin-left: 2rem;
+    }
+
+    a {
+        color: #4fd1c5;
+        text-decoration: underline;
+        transition: 0.3s;
+
+        &:hover {
+            color: hsl(174, 47%, 43%);
+        }
+    }
+}
