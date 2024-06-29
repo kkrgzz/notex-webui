@@ -10,6 +10,7 @@ import { BrowserRouter, Navigate, Route, Router, Routes } from 'react-router-dom
 import NotFoundPage from './pages/NotFoundPage/NotFoundPage';
 import LogoutView from './pages/Logout.jsx/LogoutView';
 import { AuthContext, AuthProvider } from './config/AuthContext';
+import './style/main.scss';
 
 function ProtectedRoute ({ children }) {
 

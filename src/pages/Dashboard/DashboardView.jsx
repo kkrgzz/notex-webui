@@ -12,6 +12,9 @@ import theme from '../../config/theme';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../../config/AuthContext';
 import api from '../../config/api';
+import ReactQuill from 'react-quill';
+
+import 'react-quill/dist/quill.snow.css'; // Import the styles
 
 function DashboardView() {
     const [notes, setNotes] = useState([]);
@@ -74,11 +77,6 @@ function DashboardView() {
 
         fetchData();
     }, []);
-
-
-
-
-
 
     const onOpenNoteModal = () => {
         setIsEditingNote(false);
@@ -612,6 +610,10 @@ function DashboardView() {
                                 placeholder="Content"
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
+                            />
+                            <ReactQuill 
+                            value={content} 
+                            onChange={setContent}
                             />
                             <Box maxHeight="100px" overflowY="auto" border="1px solid #4A5568" borderRadius="md" p={2}>
                                 {categories.map((category) => (
