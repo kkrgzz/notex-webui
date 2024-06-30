@@ -122,22 +122,13 @@ function DashboardView() {
 
     const handleAddNote = async () => {
 
-        // Generate unique Salt and IV for each new note
-        const salt = encrpytionService.generateSalt();
-        const iv = encrpytionService.generateIV();
-
-        //console.log(encrpytionService.encryptWithSaltAndIV(title, encPassword, salt, iv));
-        //console.log(encrpytionService.encryptWithSaltAndIV(content, encPassword, salt, iv));
-
         // Encrypt the data
-        const encTitle = encrpytionService.encryptWithSaltAndIV(title, encPassword, salt, iv);
-        const encContent = encrpytionService.encryptWithSaltAndIV(content, encPassword, salt, iv);
+        const encTitle = encrpytionService.encrypt(title, encPassword);
+        const encContent = encrpytionService.encrypt(content, encPassword);
 
         const formData = new FormData();
         formData.append('title', encTitle);
         formData.append('content', encContent);
-        formData.append('salt', salt);
-        formData.append('iv', iv);
 
 
         // Kategorileri ekleme
@@ -177,7 +168,7 @@ function DashboardView() {
                 title: "Error creating note.",
                 description: error.response?.data?.message || "There was an error creating your note.",
                 status: "error",
-                duration: 15000,
+                duration: 2000,
                 isClosable: true,
             });
         }

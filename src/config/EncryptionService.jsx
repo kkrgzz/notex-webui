@@ -37,14 +37,6 @@ class EncryptionService {
     return JSON.stringify({ salt, iv, encrypted });
   }
 
-  encryptWithSaltAndIV(message, password, salt, iv) {
-    const key = this.deriveKey(password, salt);
-    const encrypted = CryptoJS.AES.encrypt(message, CryptoJS.enc.Hex.parse(key), {
-        iv: CryptoJS.enc.Hex.parse(iv),
-    }).toString();
-    return JSON.stringify({salt, iv, encrypted});
-  }
-
   // Function to decrypt a message
   decrypt(encryptedMessage, password) {
     try {
