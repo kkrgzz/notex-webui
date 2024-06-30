@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
 
     const logout = () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('encPass');
         setToken(null);
     };
 

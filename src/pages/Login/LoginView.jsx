@@ -1,8 +1,9 @@
 import { ChakraProvider, Box, Flex, Heading, Input, Button, Link, extendTheme, useToast } from '@chakra-ui/react';
 import { useContext, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import api from '../../config/api';
 import { AuthContext } from '../../config/AuthContext';
+import { EncryptionContext } from '../../config/EncryptionContext';
 
 const config = {
   initialColorMode: 'dark',
@@ -15,6 +16,7 @@ const theme = extendTheme({ config });
 function LoginView() {
 
   const {login, token} = useContext(AuthContext);
+  const { encPass } = useContext(EncryptionContext);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,7 +25,11 @@ function LoginView() {
 
   useEffect(()=>{
     if (token) {
-      navigate("/dashboard");
+      if (encPass) {
+        navigate("/dashboard");
+      } else {
+        navigate("/auth");
+      }
     }
   }, [token, navigate]);
 
@@ -33,7 +39,7 @@ function LoginView() {
 
       login(response.data.token);
 
-      navigate("/dashboard");
+      return <Navigate to="/dashboard"/>
 
     } catch (error) {
       toast({

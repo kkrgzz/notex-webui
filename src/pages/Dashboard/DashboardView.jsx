@@ -5,7 +5,8 @@ import {
     CheckboxGroup, Divider, FormControl, FormLabel, Image, Tag, TagLabel, Menu, MenuButton, MenuList, MenuItem, Avatar, Wrap, WrapItem, Drawer, DrawerOverlay, DrawerContent, DrawerHeader, DrawerBody, DrawerFooter, Text, useColorMode, Tooltip,
     Spacer,
     useToast,
-    Select
+    Select,
+    Spinner
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon, CheckIcon, AttachmentIcon, CloseIcon, ChevronDownIcon, SettingsIcon, HamburgerIcon, SunIcon, MoonIcon, CopyIcon, Search2Icon } from '@chakra-ui/icons';
 import theme from '../../config/theme';
@@ -15,6 +16,8 @@ import api from '../../config/api';
 import ReactQuill from 'react-quill';
 import DOMPurify from 'dompurify';
 import 'react-quill/dist/quill.snow.css'; // Import the styles
+import EncryptionService from '../../config/EncryptionService';
+import { EncryptionContext } from '../../config/EncryptionContext';
 
 function DashboardView() {
     const [notes, setNotes] = useState([]);
@@ -34,6 +37,10 @@ function DashboardView() {
     const [noteToDeleteFromArray, setNoteToDeleteFromArray] = useState(null);
     const [viewingNote, setViewingNote] = useState(null);
 
+    const [encryptedTitle, setEncryptedTitle] = useState('');
+    const [encryptedContent, setEncryptedContent] = useState('');
+
+    const [isNoteLoading, setIsNoteLoading] = useState(true);
     const { isOpen: isNoteModalOpen, onOpen: onOpenNoteModalBase, onClose: onCloseNoteModalBase } = useDisclosure();
     const { isOpen: isCatModalOpen, onOpen: onOpenCatModal, onClose: onCloseCatModal } = useDisclosure();
     const { isOpen: isDrawerOpen, onOpen: onOpenDrawer, onClose: onCloseDrawer } = useDisclosure();
@@ -41,29 +48,33 @@ function DashboardView() {
     const { isOpen: isViewModalOpen, onOpen: onOpenViewModal, onClose: onCloseViewModal } = useDisclosure();
     const { colorMode, toggleColorMode } = useColorMode();
 
+    const encrpytionService = new EncryptionService();
     const image_base_url = import.meta.env.VITE_API_IMAGE_URL;
     const { logout } = useContext(AuthContext);
+    const { encPassword } = useContext(EncryptionContext);
     const toast = useToast();
 
 
     useEffect(() => {
         const fetchData = async () => {
+            setIsNoteLoading(true);
             try {
                 const [categoriesResponse, notesResponse] = await Promise.all([
                     api.get('/categories'),
                     api.get('/notes')
                 ]);
 
-                console.log('Fetched Notes:', notesResponse.data);
-
                 setCategories(categoriesResponse.data);
                 setNotes(notesResponse.data);
 
+                /*
                 notesResponse.data.forEach((note, index) => {
                     console.log(`Note ${index}:`, note);
                 });
-
+                */
                 setNotes(notesResponse.data);
+
+                setIsNoteLoading(false);
             } catch (error) {
                 toast({
                     title: "Error loading data.",
@@ -110,9 +121,24 @@ function DashboardView() {
     }
 
     const handleAddNote = async () => {
+
+        // Generate unique Salt and IV for each new note
+        const salt = encrpytionService.generateSalt();
+        const iv = encrpytionService.generateIV();
+
+        //console.log(encrpytionService.encryptWithSaltAndIV(title, encPassword, salt, iv));
+        //console.log(encrpytionService.encryptWithSaltAndIV(content, encPassword, salt, iv));
+
+        // Encrypt the data
+        const encTitle = encrpytionService.encryptWithSaltAndIV(title, encPassword, salt, iv);
+        const encContent = encrpytionService.encryptWithSaltAndIV(content, encPassword, salt, iv);
+
         const formData = new FormData();
-        formData.append('title', title);
-        formData.append('content', content);
+        formData.append('title', encTitle);
+        formData.append('content', encContent);
+        formData.append('salt', salt);
+        formData.append('iv', iv);
+
 
         // Kategorileri ekleme
         selectedCategories.forEach((category) => {
@@ -151,10 +177,11 @@ function DashboardView() {
                 title: "Error creating note.",
                 description: error.response?.data?.message || "There was an error creating your note.",
                 status: "error",
-                duration: 2000,
+                duration: 15000,
                 isClosable: true,
             });
         }
+
     };
 
 
@@ -538,53 +565,67 @@ function DashboardView() {
                     </Box>
                     <Flex flex="1" direction="column" p={4}>
                         <List spacing={3}>
-                            {notes.map((note, index) => (
-                                <ListItem key={index} bg={colorMode === 'light' ? 'white' : 'gray.800'} p={4} rounded="md" shadow="md">
-                                    <Wrap spacing={4} align="center">
-                                        {note.images[0] && (
-                                            <WrapItem>
-                                                <Image src={`${image_base_url}${note.images[0].file_path}`} alt="Note Image" boxSize="100px" objectFit="cover" />
-                                            </WrapItem>
-                                        )}
-                                        <WrapItem flex="1">
-                                            <Box>
-                                                <Heading size="md" color="teal.300">
-                                                    {note.title.length > 24 ? `${note.title.substring(0, 24)}...` : note.title}
-                                                </Heading>
-                                                <HStack spacing={2} mt={2}>
-                                                    {note.categories.slice(0, 3).map((category) => (
-                                                        <Tag size="sm" key={category.id} colorScheme="teal">
-                                                            <TagLabel>{category.name}</TagLabel>
-                                                        </Tag>
-                                                    ))}
-                                                </HStack>
-                                            </Box>
-                                        </WrapItem>
-                                        <WrapItem>
-                                            <HStack spacing={2}>
-                                                <IconButton
-                                                    icon={<Search2Icon />}
-                                                    colorScheme="teal"
-                                                    size="lg"
-                                                    onClick={() => handleViewNote(index)}
-                                                />
-                                                <IconButton
-                                                    icon={<EditIcon />}
-                                                    colorScheme="cyan"
-                                                    size="lg"
-                                                    onClick={() => handleEditNote(index)}
-                                                />
-                                                <IconButton
-                                                    icon={<DeleteIcon />}
-                                                    colorScheme="red"
-                                                    size="lg"
-                                                    onClick={() => confirmDeleteNote(note.id, index)}
-                                                />
-                                            </HStack>
-                                        </WrapItem>
-                                    </Wrap>
-                                </ListItem>
-                            ))}
+                            {isNoteLoading ? (
+                                <Flex justify="center" align="center" height="100%">
+                                    <Spinner
+                                        thickness='4px'
+                                        speed='0.65s'
+                                        emptyColor='gray.200'
+                                        color='blue.500'
+                                        size='xl'
+                                    />
+                                </Flex>
+                            ) : (
+                                <div>
+                                    {notes.map((note, index) => (
+                                        <ListItem key={index} bg={colorMode === 'light' ? 'white' : 'gray.800'} p={4} rounded="md" shadow="md">
+                                            <Wrap spacing={4} align="center">
+                                                {note.images[0] && (
+                                                    <WrapItem>
+                                                        <Image src={`${image_base_url}${note.images[0].file_path}`} alt="Note Image" boxSize="100px" objectFit="cover" />
+                                                    </WrapItem>
+                                                )}
+                                                <WrapItem flex="1">
+                                                    <Box>
+                                                        <Heading size="md" color="teal.300">
+                                                            {note.title.length > 24 ? `${note.title.substring(0, 24)}...` : note.title}
+                                                        </Heading>
+                                                        <HStack spacing={2} mt={2}>
+                                                            {note.categories.slice(0, 3).map((category) => (
+                                                                <Tag size="sm" key={category.id} colorScheme="teal">
+                                                                    <TagLabel>{category.name}</TagLabel>
+                                                                </Tag>
+                                                            ))}
+                                                        </HStack>
+                                                    </Box>
+                                                </WrapItem>
+                                                <WrapItem>
+                                                    <HStack spacing={2}>
+                                                        <IconButton
+                                                            icon={<Search2Icon />}
+                                                            colorScheme="teal"
+                                                            size="lg"
+                                                            onClick={() => handleViewNote(index)}
+                                                        />
+                                                        <IconButton
+                                                            icon={<EditIcon />}
+                                                            colorScheme="cyan"
+                                                            size="lg"
+                                                            onClick={() => handleEditNote(index)}
+                                                        />
+                                                        <IconButton
+                                                            icon={<DeleteIcon />}
+                                                            colorScheme="red"
+                                                            size="lg"
+                                                            onClick={() => confirmDeleteNote(note.id, index)}
+                                                        />
+                                                    </HStack>
+                                                </WrapItem>
+                                            </Wrap>
+                                        </ListItem>
+                                    ))}
+                                </div>
+                            )}
                         </List>
                     </Flex>
                 </Flex>
@@ -602,11 +643,6 @@ function DashboardView() {
                                 placeholder="Title"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
-                            />
-                            <Textarea
-                                placeholder="Content"
-                                value={content}
-                                onChange={(e) => setContent(e.target.value)}
                             />
                             <ReactQuill
                                 value={content}
@@ -702,12 +738,12 @@ function DashboardView() {
                             <Stack spacing={3}>
                                 <Heading size="md" color="teal.300">{viewingNote.title}</Heading>
                                 <Wrap spacing={1}>
-                                        {viewingNote.categories.map((category, catIndex) => (
-                                            <Tag size="sm" key={catIndex} colorScheme="teal">
-                                                <TagLabel>{category.name}</TagLabel>
-                                            </Tag>
-                                        ))}
-                                    </Wrap>
+                                    {viewingNote.categories.map((category, catIndex) => (
+                                        <Tag size="sm" key={catIndex} colorScheme="teal">
+                                            <TagLabel>{category.name}</TagLabel>
+                                        </Tag>
+                                    ))}
+                                </Wrap>
                                 <Box p={2}>
                                     <Text
                                         className='note-content-text'
